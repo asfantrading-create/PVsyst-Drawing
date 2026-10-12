@@ -32,7 +32,9 @@ namespace PVDesigner.EditorTools
         /// <summary>Shaders created at runtime with Shader.Find must be part of the build.</summary>
         public static readonly string[] RuntimeShaders =
         {
-            "Standard", "Sprites/Default", "Skybox/Procedural", "UI/Default", "Legacy Shaders/Diffuse", "GUI/Text Shader"
+            // Only shaders from the built-in "extra" resources: shaders from "unity default resources"
+            // (e.g. GUI/Text Shader) are always shipped and must not be listed (HideFlags.DontSave build error).
+            "Standard", "Sprites/Default", "Skybox/Procedural", "UI/Default", "Legacy Shaders/Diffuse"
         };
 
         /// <summary>OpenXR controller profiles enabled for every platform.</summary>
@@ -129,10 +131,21 @@ namespace PVDesigner.EditorTools
             var list = so.FindProperty("m_AlwaysIncludedShaders");
             if (list == null) return;
             bool changed = false;
+            // Remove entries that break player builds (assets flagged DontSave, e.g. from an older setup).
+            for (int i = list.arraySize - 1; i >= 0; i--)
+            {
+                var obj = list.GetArrayElementAtIndex(i).objectReferenceValue;
+                if (obj != null && (obj.hideFlags & HideFlags.DontSave) != 0)
+                {
+                    list.GetArrayElementAtIndex(i).objectReferenceValue = null;
+                    list.DeleteArrayElementAtIndex(i);
+                    changed = true;
+                }
+            }
             foreach (var name in RuntimeShaders)
             {
                 var shader = Shader.Find(name);
-                if (shader == null) continue;
+                if (shader == null || (shader.hideFlags & HideFlags.DontSave) != 0) continue;
                 bool present = false;
                 for (int i = 0; i < list.arraySize; i++)
                     if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader) present = true;

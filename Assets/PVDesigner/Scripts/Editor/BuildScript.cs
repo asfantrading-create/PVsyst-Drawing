@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using UnityEditor;
-using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -84,18 +83,6 @@ namespace PVDesigner.EditorTools
             var main = version.Split('-')[0].Split('.');
             int Part(int i) => i < main.Length && int.TryParse(main[i], out int v) ? v : 0;
             return Math.Max(1, Part(0) * 10000 + Part(1) * 100 + Part(2));
-        }
-    }
-
-    /// <summary>Makes sure runtime-created materials have their shaders in every build, including manual ones.</summary>
-    public class EnsureShadersPreprocessor : IPreprocessBuildWithReport
-    {
-        public int callbackOrder => 0;
-
-        public void OnPreprocessBuild(BuildReport report)
-        {
-            // Scenes cannot be created while a build runs: only the shader list is fixed up here.
-            ProjectSetup.EnsureAlwaysIncludedShaders();
         }
     }
 }
