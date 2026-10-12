@@ -816,7 +816,7 @@ namespace PVDesigner.App
         private void UpdateSunPathFrame()
         {
             var b = Scene.SiteBounds();
-            Sun.SetPathFrame(new Vector3(b.center.x, 0, b.center.z), Mathf.Max(b.size.x, b.size.z) * 0.6f);
+            Sun.SetPathFrame(new Vector3(b.center.x, 0, b.center.z), Mathf.Max(b.size.x, b.size.z) * 0.8f + 20f); // outside the site so the arc never crosses the tables
         }
 
         public void SetColorMode(ColorMode mode)
