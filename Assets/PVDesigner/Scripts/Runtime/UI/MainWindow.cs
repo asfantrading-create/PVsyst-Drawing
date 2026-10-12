@@ -286,8 +286,6 @@ namespace PVDesigner.UI
         {
             var next = (ColorMode)(((int)_app.ColorMode + 1) % 3);
             _app.SetColorMode(next);
-            string[] names = { "Colour: realistic", "Colour: inverters", "Colour: shading" };
-            UIFactory.SetButtonText(_colorMode, names[(int)next]);
             if (next == ColorMode.ShadingHeatmap) _app.Status("Shading heat map at the current date and time (move the time sliders).");
         }
 
@@ -340,9 +338,13 @@ namespace PVDesigner.UI
 
         // ------------------------------------------------------------ events
 
+        private static readonly string[] ColorModeNames = { "Colour: realistic", "Colour: inverters", "Colour: shading" };
+
         private void OnChanged(ChangeKind kind)
         {
             RefreshTitle();
+            // The colour mode can also be changed from the Shading / Electrical panels.
+            UIFactory.SetButtonText(_colorMode, ColorModeNames[(int)_app.ColorMode]);
             foreach (var p in _panels) p.OnChanged(kind);
         }
 
