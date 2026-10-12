@@ -27,7 +27,7 @@
 
 ## البدء السريع (للمطوّر)
 
-1. ثبّت **Unity Hub** ثم المحرر **6000.0.83f1 (Unity 6 LTS)** مع الوحدات:
+1. ثبّت **Unity Hub** ثم المحرر **6000.3.26f1 (Unity 6.3 LTS)** مع الوحدات:
    *Windows Build Support (Mono)* و *Android Build Support* (لـ Quest).
 2. افتح مجلد المشروع من Unity Hub. عند السؤال عن تفعيل Input System اختر **Yes** (البرنامج يدعم النظامين).
 3. من القائمة: **PV Designer ▸ Setup ▸ Configure project** (ينشئ المشهد ويضبط OpenXR تلقائياً).
@@ -105,7 +105,7 @@ tables or single-axis trackers (with backtracking), ray-traced near shading (lin
 8760-hour simulation with a PVsyst-style loss diagram, economics, HTML report / CSV export, OpenXR VR (table-top and
 1:1 walk modes) and GitHub-Releases based auto-update with SHA-256 verification.
 
-* Open with Unity **6000.0.83f1**, run *PV Designer ▸ Setup ▸ Configure project*, press Play.
+* Open with Unity **6000.3.26f1**, run *PV Designer ▸ Setup ▸ Configure project*, press Play.
 * Core unit tests: `dotnet test Tools/CoreTests` (no Unity license needed).
 * Release: push a tag `vX.Y.Z` — see [docs/RELEASING.md](docs/RELEASING.md).
 * Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
