@@ -408,6 +408,9 @@ namespace PVDesigner.SceneView
                     c = Color.Lerp(c, new Color(1f, 0.6f, 0.1f), 0.7f);
                 _mpb.Clear();
                 _mpb.SetColor("_Color", c);
+                // The cell texture is dark blue: analysis colours (heat map, inverters) are drawn on a white
+                // texture so they stay clearly visible.
+                if (mode != ColorMode.Realistic) _mpb.SetTexture("_MainTex", Texture2D.whiteTexture);
                 t.Renderer.SetPropertyBlock(_mpb, 0);
             }
         }
