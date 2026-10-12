@@ -1,0 +1,5 @@
+<!-- Keep the model types: they are serialized through reflection (Newtonsoft.Json), which IL2CPP stripping cannot see. -->
+<linker>
+  <assembly fullname="PVDesigner.Core" preserve="all" />
+  <assembly fullname="PVDesigner.Runtime" preserve="all" />
+</linker>

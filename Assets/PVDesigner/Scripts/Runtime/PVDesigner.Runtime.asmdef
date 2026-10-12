@@ -1,0 +1,32 @@
+{
+    "name": "PVDesigner.Runtime",
+    "rootNamespace": "PVDesigner",
+    "references": [
+        "PVDesigner.Core",
+        "UnityEngine.UI",
+        "Unity.InputSystem",
+        "Unity.XR.Management"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.management",
+            "expression": "4.0.0",
+            "define": "PVD_XR_MANAGEMENT"
+        },
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "1.0.0",
+            "define": "PVD_INPUT_SYSTEM"
+        }
+    ],
+    "noEngineReferences": false
+}
