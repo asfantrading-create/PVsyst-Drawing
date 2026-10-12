@@ -42,6 +42,8 @@ namespace PVDesigner.Tools
         private bool _dragging;
         private Vector3 _dragOffset;
         private bool _dragRecorded;
+        private string _dragId;
+        private Vector2 _rightDownPos;
 
         public void Initialize(PVDesignerApp app)
         {
@@ -124,20 +126,24 @@ namespace PVDesigner.Tools
             }
 
             Vector2 mouse = InputAdapter.MousePosition;
-            bool overUi = PointerOverUi;
-            cam.GroundPoint(mouse, out Vector3 ground);
+            // A ray that misses the ground (sky) must not create points at the origin.
+            bool overUiOnly = PointerOverUi;
+            bool hasGround = cam.GroundPoint(mouse, out Vector3 ground);
+            bool overUi = overUiOnly || !hasGround;
             var snapped = Snap(ground);
+            if (InputAdapter.MouseDown(1)) _rightDownPos = mouse;
 
             switch (Mode)
             {
                 case ToolMode.Select:
-                    UpdateSelect(mouse, ground, overUi);
+                    UpdateSelect(mouse, ground, overUiOnly);
                     break;
                 case ToolMode.DrawSiteBoundary:
                 case ToolMode.DrawFieldBoundary:
-                    UpdateDraftLine(snapped);
+                    if (!overUi) UpdateDraftLine(snapped);
                     if (!overUi && InputAdapter.MouseDown(0)) AddDraftPoint(snapped);
-                    if (!overUi && InputAdapter.MouseUp(1) && _draft.Count >= 3) FinishDraft();
+                    // Right click (not a right drag used to orbit the camera) closes the polygon.
+                    if (InputAdapter.MouseUp(1) && _draft.Count >= 3 && (mouse - _rightDownPos).sqrMagnitude < 25f) FinishDraft();
                     break;
                 case ToolMode.Measure:
                     UpdateMeasure(snapped, overUi);
@@ -170,13 +176,15 @@ namespace PVDesigner.Tools
                 {
                     _dragging = true;
                     _dragRecorded = false;
+                    _dragId = o.Id;
                     _dragOffset = new Vector3((float)o.X, 0, (float)o.Z) - ground;
                 }
             }
             if (_dragging && InputAdapter.MouseHeld(0))
             {
-                var o = SelectedObstacle;
-                if (o != null)
+                // Look the obstacle up by id: the GameObject is only moved during the drag and rebuilt on release.
+                var o = _app.Project.FindObstacle(_dragId);
+                if (o != null && _app.Scene.Obstacles.TryGetValue(o.Id, out var root) && root != null)
                 {
                     var target = Snap(ground + _dragOffset);
                     if (Mathf.Abs(target.x - (float)o.X) > 0.01f || Mathf.Abs(target.z - (float)o.Z) > 0.01f)
@@ -188,8 +196,7 @@ namespace PVDesigner.Tools
                         }
                         o.X = target.x;
                         o.Z = target.z;
-                        _app.Scene.RefreshObstacle(o);
-                        _app.Scene.SetSelection(Selected);
+                        root.transform.localPosition = new Vector3((float)o.X, (float)o.BaseElevation, (float)o.Z);
                     }
                 }
             }
@@ -198,9 +205,8 @@ namespace PVDesigner.Tools
                 _dragging = false;
                 if (_dragRecorded)
                 {
-                    var id = Selected != null ? Selected.ObstacleId : null;
                     _app.MarkChanged(ChangeKind.Obstacles);
-                    ReselectObstacle(id);
+                    ReselectObstacle(_dragId);
                 }
             }
         }

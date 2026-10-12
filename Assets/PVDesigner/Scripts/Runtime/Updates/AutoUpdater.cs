@@ -227,10 +227,11 @@ namespace PVDesigner.Updates
             }
 
             string staging = Path.Combine(dir, "files");
+            string marker = Path.Combine(dir, "installer-started");
             try
             {
                 ZipFile.ExtractToDirectory(zipPath, staging);
-                LaunchInstaller(staging, dir);
+                LaunchInstaller(staging, dir, marker);
             }
             catch (Exception e)
             {
@@ -238,9 +239,22 @@ namespace PVDesigner.Updates
                 Error("Installation failed: " + e.Message);
                 yield break;
             }
+
+            // Only quit once the installer script is confirmed running (it can be blocked by
+            // execution policy, antivirus or a cancelled elevation prompt).
+            float deadline = Time.realtimeSinceStartup + 60f;
+            while (!File.Exists(marker) && Time.realtimeSinceStartup < deadline) yield return new WaitForSecondsRealtime(0.25f);
+            if (!File.Exists(marker))
+            {
+                Busy = false;
+                Error("The update installer did not start (blocked by security settings or the administrator prompt was cancelled). " +
+                      "Install the update manually from the release page.");
+                Application.OpenURL(release.HtmlUrl);
+                yield break;
+            }
             StatusText = "Restarting ...";
             _app.Status("Installing update " + release.Version + ", the application restarts ...");
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSecondsRealtime(0.3f);
             Application.Quit();
         }
 
@@ -252,10 +266,11 @@ namespace PVDesigner.Updates
         }
 
         /// <summary>
-        /// Writes and starts a PowerShell script that waits for this process to exit, copies the new files over the
-        /// installation folder and restarts the application. Elevation is requested when the folder is protected.
+        /// Writes and starts a PowerShell script that waits for this process to exit, backs up the installation,
+        /// copies the new files and restarts the application. On failure the backup is restored.
+        /// Elevation is requested only when the installation folder is protected.
         /// </summary>
-        private static void LaunchInstaller(string staging, string workDir)
+        private static void LaunchInstaller(string staging, string workDir, string marker)
         {
             string installDir = Path.GetDirectoryName(Application.dataPath);
             if (string.IsNullOrEmpty(installDir)) throw new InvalidOperationException("Unknown installation folder.");
@@ -280,22 +295,33 @@ namespace PVDesigner.Updates
             if (!File.Exists(Path.Combine(source, Path.GetFileName(exe))))
                 throw new InvalidOperationException("The update package does not contain " + Path.GetFileName(exe));
 
+            string backup = Path.Combine(workDir, "backup");
+            string log = Path.Combine(workDir, "install.log");
             int pid = Process.GetCurrentProcess().Id;
             // PowerShell with a UTF-8 BOM handles non-ASCII paths (e.g. Arabic user names) correctly.
             string script = Path.Combine(workDir, "install-update.ps1");
             var sb = new StringBuilder();
             sb.AppendLine("$ErrorActionPreference = 'Continue'");
+            sb.AppendLine($"Set-Content -LiteralPath {Ps(marker)} -Value 'started'");
             sb.AppendLine($"$procId = {pid}");
             sb.AppendLine("while (Get-Process -Id $procId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }");
             sb.AppendLine("Start-Sleep -Milliseconds 500");
-            sb.AppendLine($"robocopy {Ps(source)} {Ps(installDir)} /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null");
-            sb.AppendLine("if ($LASTEXITCODE -ge 8) {");
-            sb.AppendLine("  Add-Type -AssemblyName PresentationFramework");
-            sb.AppendLine("  [System.Windows.MessageBox]::Show('The update could not be installed. Close PV Designer and try again.', 'PV Designer update') | Out-Null");
-            sb.AppendLine("  exit 1");
+            sb.AppendLine($"robocopy {Ps(installDir)} {Ps(backup)} /MIR /R:3 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null");
+            sb.AppendLine("if ($LASTEXITCODE -ge 8) { $ok = $false } else {");
+            sb.AppendLine($"  robocopy {Ps(source)} {Ps(installDir)} /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP /LOG:{Ps(log)} | Out-Null");
+            sb.AppendLine("  $ok = $LASTEXITCODE -lt 8");
+            sb.AppendLine("  if (-not $ok) {");
+            sb.AppendLine("    # Roll back to the previous version so the application keeps working.");
+            sb.AppendLine($"    robocopy {Ps(backup)} {Ps(installDir)} /MIR /R:10 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null");
+            sb.AppendLine("  }");
             sb.AppendLine("}");
-            sb.AppendLine($"Start-Process -FilePath {Ps(exe)}");
-            sb.AppendLine($"Remove-Item -Recurse -Force -LiteralPath {Ps(staging)} -ErrorAction SilentlyContinue");
+            sb.AppendLine("if (-not $ok) {");
+            sb.AppendLine("  Add-Type -AssemblyName PresentationFramework");
+            sb.AppendLine("  [System.Windows.MessageBox]::Show('The update could not be installed; the previous version was kept. Close PV Designer and try again.', 'PV Designer update') | Out-Null");
+            sb.AppendLine("}");
+            sb.AppendLine("# Restart through Explorer so the application never runs elevated or as another account.");
+            sb.AppendLine($"Start-Process -FilePath 'explorer.exe' -ArgumentList ('\"' + {Ps(exe)} + '\"')");
+            sb.AppendLine($"if ($ok) {{ Remove-Item -Recurse -Force -LiteralPath {Ps(staging)}, {Ps(backup)} -ErrorAction SilentlyContinue }}");
             File.WriteAllText(script, sb.ToString(), new UTF8Encoding(true));
 
             var psi = new ProcessStartInfo("powershell.exe",

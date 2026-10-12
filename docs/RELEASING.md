@@ -5,8 +5,9 @@ Installed copies of PV Designer check `https://api.github.com/repos/<owner>/<rep
 
 1. the app downloads `PVDesigner-Windows-x64.zip` and `PVDesigner-Windows-x64.zip.sha256` from the release,
 2. verifies the SHA-256 checksum (the update is refused if the checksum is missing or different),
-3. extracts it, closes itself, copies the files over the installation folder (asking for administrator
-   rights only if the folder is protected) and restarts.
+3. extracts it and starts an installer script; the app only closes once the script is confirmed running,
+4. the script backs up the installation, copies the new files (asking for administrator rights only if the
+   folder is protected), restores the backup if anything fails, and restarts the app as the normal user.
 
 On Meta Quest (APK) and other platforms the app opens the release page instead.
 

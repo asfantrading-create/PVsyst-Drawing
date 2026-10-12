@@ -91,6 +91,8 @@ namespace PVDesigner.App
         public string Version => Application.version;
 
         private SystemSizingResult _sizing;
+        /// <summary>Incremented on every project change; background results computed for an older revision are discarded.</summary>
+        private int _revision;
         private ShadingScene _liveShadingScene;
         private float _heatmapTimer;
         private bool _heatmapDirty;
@@ -132,7 +134,7 @@ namespace PVDesigner.App
             }
             cam.transform.SetParent(null, false);
             DontDestroyOnLoad(cam.gameObject);
-            OrbitCamera = cam.gameObject.GetComponent<OrbitCamera>() ?? cam.gameObject.AddComponent<OrbitCamera>();
+            OrbitCamera = cam.gameObject.GetOrAdd<OrbitCamera>();
             OrbitCamera.Initialize();
 
             EnsureEventSystem();
@@ -187,11 +189,11 @@ namespace PVDesigner.App
         public static BaseInputModule AddDesktopInputModule(GameObject go)
         {
 #if ENABLE_LEGACY_INPUT_MANAGER
-            return go.GetComponent<StandaloneInputModule>() ?? go.AddComponent<StandaloneInputModule>();
+            return go.GetOrAdd<StandaloneInputModule>();
 #elif ENABLE_INPUT_SYSTEM && PVD_INPUT_SYSTEM
-            return go.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() ?? go.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            return go.GetOrAdd<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
 #else
-            return go.GetComponent<StandaloneInputModule>() ?? go.AddComponent<StandaloneInputModule>();
+            return go.GetOrAdd<StandaloneInputModule>();
 #endif
         }
 
@@ -271,6 +273,7 @@ namespace PVDesigner.App
 
         public void MarkChanged(ChangeKind kind)
         {
+            if (kind != ChangeKind.Info && kind != ChangeKind.Economics) _revision++;
             IsDirty = kind != ChangeKind.ProjectLoaded || IsDirty;
             _sizing = null;
             switch (kind)
@@ -353,6 +356,7 @@ namespace PVDesigner.App
 
         private void AfterHistoryChange(string what)
         {
+            _revision++;
             Tools.ClearSelection();
             ActiveFieldIndex = Mathf.Clamp(ActiveFieldIndex, 0, Math.Max(0, Project.Fields.Count - 1));
             RebuildLibrary();
@@ -435,8 +439,9 @@ namespace PVDesigner.App
                 Directory.CreateDirectory(Path.GetDirectoryName(path) ?? AppPaths.Projects);
                 string tmp = path + ".tmp";
                 File.WriteAllText(tmp, ProjectSerializer.Serialize(Project));
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(tmp, path);
+                // Atomic replacement: a crash never leaves the project without a valid file.
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else File.Move(tmp, path);
                 ProjectPath = path;
                 IsDirty = false;
                 AppSettings.LastProjectPath = path;
@@ -639,12 +644,18 @@ namespace PVDesigner.App
             var snap = Snapshot();
             var module = Module;
             int samples = Project.Simulation.MaxShadingSamples;
+            int revision = _revision;
             bool started = Jobs.Run("Near shading", (progress, token) =>
             {
                 var scene = ShadingScene.Build(snap, module, samples);
                 return ShadingCalculator.Compute(snap, scene, progress, token);
             }, res =>
             {
+                if (revision != _revision)
+                {
+                    Status("The project changed during the shading calculation: run it again.", true);
+                    return;
+                }
                 Shading = res;
                 ShadingUpToDate = true;
                 Status($"Near shading computed: {res.SampleCount} points, {res.OccluderCount} objects, {res.ComputeSeconds:0.0} s. " +
@@ -680,9 +691,15 @@ namespace PVDesigner.App
             var module = Module;
             var inverter = Inverter;
             var shading = Project.Simulation.Shading == ShadingMode.None ? null : Shading;
+            int simRevision = _revision;
             bool started = Jobs.Run("Simulation", (progress, token) => EnergySimulator.Run(snap, module, inverter, shading, progress, token),
                 res =>
                 {
+                    if (simRevision != _revision)
+                    {
+                        Status("The project changed during the simulation: run it again.", true);
+                        return;
+                    }
                     Simulation = res;
                     RecomputeEconomics();
                     Status($"Simulation done: {res.Annual.EGrid / 1000:#,0.0} MWh/year, {res.SpecificYield:0} kWh/kWp, PR {res.PerformanceRatio * 100:0.0} %.");

@@ -47,6 +47,9 @@ namespace PVDesigner.VR
         private bool _snapReady = true;
         private bool _uiVisible = true;
         private float _activeSince;
+        private bool _placePanelPending;
+        private float _dayAccumulator;
+        private bool _triggerStartedOnUi;
 
         // Grab state
         private bool _grabbing;
@@ -179,7 +182,7 @@ namespace PVDesigner.VR
                 if (!(m is VRUIInputModule) && _desktopModule == null) _desktopModule = m;
                 m.enabled = false;
             }
-            _uiModule = es.GetComponent<VRUIInputModule>() ?? es.gameObject.AddComponent<VRUIInputModule>();
+            _uiModule = es.gameObject.GetOrAdd<VRUIInputModule>();
             _uiModule.enabled = true;
             _uiModule.PointerCamera = _pointerCamera;
             _uiModule.IsPressed = () => _rightState.TriggerPressed;
@@ -190,7 +193,9 @@ namespace PVDesigner.VR
             _uiVisible = true;
             IsActive = true;
             SetMode(Mode);
-            PlacePanelInFront();
+            // The head pose is not known yet: the panel is placed on the first tracked frame.
+            _placePanelPending = true;
+            _dayAccumulator = _app.Sun.DayOfYear;
             StatusText = "Running (" + XRSettings.loadedDeviceName + ")";
             _app.Window.SetVrState(true);
             _app.Status("VR active. A: walk / table-top, grip: grab the model, trigger: click / teleport, Y or menu: panel.");
@@ -211,6 +216,7 @@ namespace PVDesigner.VR
             _app.Scene.World.localPosition = Vector3.zero;
             _app.Scene.World.localRotation = Quaternion.identity;
             _app.Scene.World.localScale = Vector3.one;
+            _app.Scene.SetLineScale(1f);
             QualitySettings.shadowDistance = 600f;
             QualitySettings.shadowCascades = 4;
             if (_rig != null) _rig.gameObject.SetActive(false);
@@ -254,6 +260,8 @@ namespace PVDesigner.VR
                 _rig.position = start;
                 _rig.rotation = Quaternion.Euler(0, north ? 0 : 180, 0);
             }
+            _app.Scene.SetLineScale(world.localScale.x);
+            _app.Sun.Recompute(); // resizes the sun path for the new scale
             // Shadow maps must cover the model at its current scale.
             QualitySettings.shadowDistance = mode == ViewMode.TableTop ? 12f : 250f;
             QualitySettings.shadowCascades = Application.isMobilePlatform ? 2 : 4;
@@ -392,6 +400,13 @@ namespace PVDesigner.VR
             _left.gameObject.SetActive(_leftState.IsTracked || _leftState.Device.isValid);
             _right.gameObject.SetActive(_rightState.IsTracked || _rightState.Device.isValid);
 
+            if (_placePanelPending && _head.transform.localPosition.y > 0.3f)
+            {
+                _placePanelPending = false;
+                PlacePanelInFront();
+                if (Mode == ViewMode.TableTop) SetMode(ViewMode.TableTop);
+            }
+
             HandleButtons();
             HandleSticks();
             HandleGrab();
@@ -418,9 +433,10 @@ namespace PVDesigner.VR
             if (ls.sqrMagnitude > 0.04f)
             {
                 float hour = _app.Sun.Hour + ls.x * 2.5f * Time.deltaTime;
-                float day = _app.Sun.DayOfYear + ls.y * 40f * Time.deltaTime;
-                int d = Mathf.Clamp(Mathf.RoundToInt(day), 1, 365);
-                if (Mathf.Abs(ls.y) < 0.3f) d = _app.Sun.DayOfYear;
+                // Accumulate fractional days so the speed does not depend on the frame rate.
+                if (Mathf.Abs(_dayAccumulator - _app.Sun.DayOfYear) >= 1f) _dayAccumulator = _app.Sun.DayOfYear;
+                if (Mathf.Abs(ls.y) >= 0.3f) _dayAccumulator = Mathf.Clamp(_dayAccumulator + ls.y * 40f * Time.deltaTime, 1f, 365.49f);
+                int d = Mathf.Clamp(Mathf.RoundToInt(_dayAccumulator), 1, 365);
                 _app.Sun.SetDayAndHour(d, Mathf.Clamp(hour, 0f, 23.99f));
             }
 
@@ -477,6 +493,7 @@ namespace PVDesigner.VR
                 var rel = _worldStartPos - _twoHandStartMid;
                 rel = Quaternion.Euler(0, dyaw, 0) * rel * (scale / _twoHandStartScale);
                 world.localScale = Vector3.one * scale;
+                _app.Scene.SetLineScale(scale);
                 world.rotation = Quaternion.Euler(0, _worldStartYaw + dyaw, 0);
                 world.position = mid + rel;
                 return;
@@ -505,6 +522,7 @@ namespace PVDesigner.VR
             var dir = _pointerCamera.transform.forward;
             Vector3 end = origin + dir * 8f;
             bool showTeleport = false;
+            if (_rightState.TriggerDown) _triggerStartedOnUi = _uiModule != null && _uiModule.IsOverUi;
 
             if (_uiModule != null && _uiModule.IsOverUi)
             {
@@ -518,7 +536,7 @@ namespace PVDesigner.VR
                 if (ground.Raycast(ray, out float t) && t < 300f)
                 {
                     end = ray.GetPoint(t);
-                    if (Mode == ViewMode.Walk)
+                    if (Mode == ViewMode.Walk && !_triggerStartedOnUi)
                     {
                         showTeleport = _rightState.TriggerPressed;
                         if (_rightState.TriggerUp) Teleport(end);

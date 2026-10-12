@@ -64,6 +64,9 @@ namespace PVDesigner.App
             _complete = null;
             _cts?.Dispose();
             _cts = null;
+            // Signal completion first: the callback may start a follow-up job (shading -> simulation).
+            CurrentJob = "";
+            JobFinished?.Invoke(name);
             try
             {
                 complete?.Invoke();
@@ -72,8 +75,6 @@ namespace PVDesigner.App
             {
                 Debug.LogException(e);
             }
-            CurrentJob = "";
-            JobFinished?.Invoke(name);
         }
 
         private void OnDestroy() => _cts?.Cancel();

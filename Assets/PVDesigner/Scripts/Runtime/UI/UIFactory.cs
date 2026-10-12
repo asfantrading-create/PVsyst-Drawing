@@ -1,4 +1,5 @@
 using System;
+using PVDesigner.App;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -99,7 +100,7 @@ namespace PVDesigner.UI
 
         public static LayoutElement Layout(Component c, float prefWidth = -1, float prefHeight = -1, float flexWidth = -1, float flexHeight = -1, float minWidth = -1, float minHeight = -1)
         {
-            var le = c.GetComponent<LayoutElement>() ?? c.gameObject.AddComponent<LayoutElement>();
+            var le = c.gameObject.GetOrAdd<LayoutElement>();
             le.preferredWidth = prefWidth;
             le.preferredHeight = prefHeight;
             le.flexibleWidth = flexWidth;
@@ -294,7 +295,7 @@ namespace PVDesigner.UI
 
         public static void AddClick(Graphic g, UnityAction action)
         {
-            var b = g.gameObject.GetComponent<Button>() ?? g.gameObject.AddComponent<Button>();
+            var b = g.gameObject.GetOrAdd<Button>();
             b.targetGraphic = g;
             b.onClick.AddListener(() =>
             {

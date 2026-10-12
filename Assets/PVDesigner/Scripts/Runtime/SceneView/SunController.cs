@@ -30,8 +30,11 @@ namespace PVDesigner.SceneView
         private float _pathRadius = 80f;
         private Vector3 _pathCenter;
 
+        private SceneBuilder _builder;
+
         public void Initialize(Transform world, SceneBuilder builder)
         {
+            _builder = builder;
             var go = new GameObject("Sun");
             go.transform.SetParent(world, false);
             Light = go.AddComponent<Light>();
@@ -133,7 +136,7 @@ namespace PVDesigner.SceneView
             }
             _sunPath.positionCount = pts.Count;
             _sunPath.SetPositions(pts.ToArray());
-            _sunPath.startWidth = _sunPath.endWidth = _pathRadius * 0.006f;
+            _sunPath.startWidth = _sunPath.endWidth = _pathRadius * 0.006f * (_builder != null ? _builder.LineScale : 1f);
         }
 
         public void ShowSunPath(bool visible)

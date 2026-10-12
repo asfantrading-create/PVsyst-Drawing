@@ -176,7 +176,6 @@ namespace PVDesigner.UI
             _play = UIFactory.Button(bar.transform, "Play", () =>
             {
                 _app.Sun.Animate = !_app.Sun.Animate;
-                UIFactory.SetButtonText(_play, _app.Sun.Animate ? "Pause" : "Play");
             });
             UIFactory.Layout(_play, 64, flexWidth: 0);
 
@@ -190,7 +189,7 @@ namespace PVDesigner.UI
 
             _hourLabel = UIFactory.Label(bar.transform, "", 14, TextAnchor.MiddleRight);
             UIFactory.Layout(_hourLabel, 50, flexWidth: 0);
-            _hour = UIFactory.Slider(bar.transform, 0, 24, _app.Sun.Hour, false, v =>
+            _hour = UIFactory.Slider(bar.transform, 0, 23.75f, _app.Sun.Hour, false, v =>
             {
                 if (!_syncingTime) _app.Sun.SetDayAndHour(_app.Sun.DayOfYear, Mathf.Round(v * 4f) / 4f);
             });
@@ -405,8 +404,16 @@ namespace PVDesigner.UI
             UIFactory.SetButtonText(_vrButton, active ? "Exit VR" : "Enter VR");
         }
 
+        private bool _shownAnimate;
+
         private void Update()
         {
+            // Animation can also be toggled with Space or a VR controller button.
+            if (_shownAnimate != _app.Sun.Animate)
+            {
+                _shownAnimate = _app.Sun.Animate;
+                UIFactory.SetButtonText(_play, _shownAnimate ? "Pause" : "Play");
+            }
             if (_app.Jobs.IsBusy)
             {
                 float p = _app.Jobs.Progress;

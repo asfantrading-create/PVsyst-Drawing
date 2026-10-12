@@ -64,6 +64,29 @@ namespace PVDesigner.SceneView
 
         private PVProject _project;
         private PVModuleSpec _module;
+        private readonly Dictionary<LineRenderer, float> _lineWidths = new Dictionary<LineRenderer, float>();
+        private float _lineScale = 1f;
+
+        /// <summary>
+        /// LineRenderer widths are not affected by transform scale: keep lines proportional to the
+        /// model when the world is scaled (VR table-top mode).
+        /// </summary>
+        public float LineScale => _lineScale;
+
+        public void SetLineScale(float scale)
+        {
+            _lineScale = Mathf.Max(1e-4f, scale);
+            foreach (var lr in World.GetComponentsInChildren<LineRenderer>(true))
+            {
+                if (lr.name == "Sun path") continue; // sized by SunController using LineScale
+                if (!_lineWidths.TryGetValue(lr, out float w))
+                {
+                    w = lr.startWidth;
+                    _lineWidths[lr] = w;
+                }
+                lr.startWidth = lr.endWidth = w * _lineScale;
+            }
+        }
 
         public ColorMode Mode { get; private set; } = ColorMode.Realistic;
 
@@ -207,7 +230,8 @@ namespace PVDesigner.SceneView
         {
             _project = project;
             _module = module;
-            foreach (var t in Tables) Destroy(t.Root);
+            // Destroy the per-field containers (and their tables).
+            for (int i = _tablesRoot.childCount - 1; i >= 0; i--) Destroy(_tablesRoot.GetChild(i).gameObject);
             Tables.Clear();
             foreach (var m in _ownedMeshes) Destroy(m);
             _ownedMeshes.Clear();
