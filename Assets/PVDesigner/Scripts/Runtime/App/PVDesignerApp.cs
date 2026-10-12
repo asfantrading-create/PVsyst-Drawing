@@ -780,6 +780,14 @@ namespace PVDesigner.App
             var rt = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
             var prevTarget = cam.targetTexture;
             var prevActive = RenderTexture.active;
+            // Render the report picture in daylight with realistic colours, whatever the current view state.
+            int prevDay = Sun.DayOfYear;
+            float prevHour = Sun.Hour;
+            bool prevAnimate = Sun.Animate;
+            var prevMode = ColorMode;
+            Sun.Animate = false;
+            Sun.SetDayAndHour(Project != null && Project.Location.Latitude < 0 ? 355 : 172, 10.5f);
+            if (prevMode != ColorMode.Realistic) Scene.ApplyColors(ColorMode.Realistic, null, null);
             try
             {
                 cam.targetTexture = rt;
@@ -802,6 +810,9 @@ namespace PVDesigner.App
                 cam.targetTexture = prevTarget;
                 RenderTexture.active = prevActive;
                 RenderTexture.ReleaseTemporary(rt);
+                Sun.SetDayAndHour(prevDay, prevHour);
+                Sun.Animate = prevAnimate;
+                if (prevMode != ColorMode.Realistic) ApplyColors();
             }
         }
 
